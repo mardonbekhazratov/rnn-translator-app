@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RNN Translator</title>
+  <link rel="stylesheet" href="/static/css/styles.css" />
+</head>
+<body>
+  <nav class="nav">
+    <div class="brand">
+      <span class="brand-mark">&gt;_</span>
+      <span>RNN Translator</span>
+    </div>
+
+    <div class="nav-tabs" role="tablist">
+      <button class="nav-tab is-active" role="tab">Translate</button>
+      <button class="nav-tab" role="tab">Upload model</button>
+      <button class="nav-tab" role="tab">Submissions</button>
+    </div>
+
+    <div class="nav-right">
+      <span class="status-pill" id="statusPill" data-state="loading" title="Ollama status">
+        <span class="status-dot"></span>
+        <span id="statusText">connecting</span>
+      </span>
+      <span class="model-label">Model</span>
+      <div class="model-select-wrap">
+        <select class="model-select" id="modelSelect" disabled>
+          <option>Loading models...</option>
+        </select>
+      </div>
+      <button class="icon-btn" id="reloadBtn" title="Reload models">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 1 1-3.5-7.1"/>
+          <polyline points="21 4 21 10 15 10"/>
+        </svg>
+      </button>
+    </div>
+  </nav>
+
+  <main>
+    <div class="banner" id="banner"></div>
+
+    <section class="translate-card">
+      <button class="swap-btn" id="swapBtn" title="Swap languages">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+          <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+        </svg>
+      </button>
+
+      <div class="pane left">
+        <div class="lang-header">
+          <button class="lang-picker" id="srcLangBtn" data-lang="English">English</button>
+        </div>
+        <div class="pane-body">
+          <textarea
+            class="input-area"
+            id="inputText"
+            placeholder="Enter text"
+            maxlength="5000"
+            spellcheck="false"
+          >Hello, how are you?</textarea>
+        </div>
+        <div class="pane-footer">
+          <button class="ghost-btn" id="clearBtn" title="Clear">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+          <span class="char-count"><span id="charCount">19</span> / 5000</span>
+        </div>
+      </div>
+
+      <div class="pane right">
+        <div class="lang-header right">
+          <button class="lang-picker" id="tgtLangBtn" data-lang="Uzbek">Uzbek</button>
+        </div>
+        <div class="pane-body">
+          <div class="output-area is-empty" id="outputText">Translation will appear here</div>
+        </div>
+        <div class="pane-footer">
+          <button class="ghost-btn" id="copyBtn" title="Copy">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+          </button>
+          <span></span>
+        </div>
+      </div>
+    </section>
+
+    <p class="helper">
+      Press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to translate immediately.
+      Auto-translates after you stop typing.
+    </p>
+  </main>
+
+  <div class="toast" id="toast">Copied</div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
