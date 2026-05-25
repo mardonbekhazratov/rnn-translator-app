@@ -5,7 +5,7 @@ Loads the checkpoints produced by `train.ipynb` (`checkpoints/en2uz.pt`,
 architecture here must match the notebook exactly so the saved `state_dict`s
 load cleanly.
 
-Used by `server.py` to serve a synthetic `rnn` model alongside Ollama.
+Used by `server.py` to serve the `rnn` model in-process.
 """
 from __future__ import annotations
 

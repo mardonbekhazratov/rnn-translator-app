@@ -58,19 +58,12 @@ async function loadModels() {
     const models = data.models || [];
 
     if (models.length === 0) {
-      setStatus("err", "no models");
-      modelSelect.innerHTML = '<option>No models available</option>';
-      if (data.allow_listed) {
-        showBanner(
-          `No installed Ollama models match the allow-list. ` +
-          `Pull an allowed model or edit <code>allowed_models</code> in <code>config.json</code>.`
-        );
-      } else {
-        showBanner(
-          `Ollama is running but no models are installed. Pull one, e.g. ` +
-          `<code>ollama pull llama3.2</code>.`
-        );
-      }
+      setStatus("err", "no model");
+      modelSelect.innerHTML = '<option>No trained model</option>';
+      showBanner(
+        `No trained model found. Run <code>train.ipynb</code> to produce ` +
+        `checkpoints in <code>checkpoints/</code>, then click reload.`
+      );
       return;
     }
 
@@ -81,9 +74,9 @@ async function loadModels() {
     hideBanner();
   } catch (err) {
     setStatus("err", "offline");
-    modelSelect.innerHTML = '<option>Ollama unreachable</option>';
+    modelSelect.innerHTML = '<option>Backend offline</option>';
     showBanner(
-      `Backend could not reach Ollama. Start it with <code>ollama serve</code>, ` +
+      `Could not reach the backend. Make sure <code>server.py</code> is running, ` +
       `then click the reload button. <span style="opacity:0.7">(${err.message})</span>`
     );
   }
@@ -95,7 +88,7 @@ async function translate() {
   if (currentAbort) { currentAbort.abort(); currentAbort = null; }
   if (!text) { renderEmpty(); return; }
   if (modelSelect.disabled || !modelSelect.value) {
-    renderError("No model available. Check Ollama connection.");
+    renderError("No model available. Train the model and reload.");
     return;
   }
 
@@ -106,18 +99,10 @@ async function translate() {
   const body = {
     model,
     stream: true,
-    options: { temperature: 0.2 },
-    // Used by the local RNN model to pick its direction; ignored by Ollama.
+    // The RNN picks its direction from these.
     source_language: src,
     target_language: tgt,
     messages: [
-      {
-        role: "system",
-        content:
-          `You are a precise translator. Translate the user's text from ${src} to ${tgt}. ` +
-          `Output ONLY the translation. No quotes, no commentary, no romanization, ` +
-          `no source text, no explanations.`,
-      },
       { role: "user", content: text },
     ],
   };

@@ -1,23 +1,7 @@
 {
-  "ollama_url": "http://localhost:11434",
-  "allowed_models": [],
   "languages": [
     "English",
-    "Uzbek",
-    "Russian",
-    "Spanish",
-    "French",
-    "German",
-    "Italian",
-    "Portuguese",
-    "Turkish",
-    "Arabic",
-    "Chinese",
-    "Japanese",
-    "Korean",
-    "Hindi",
-    "Ukrainian",
-    "Polish"
+    "Uzbek"
   ],
   "default_source_language": "English",
   "default_target_language": "Uzbek"
