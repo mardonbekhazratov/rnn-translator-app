@@ -107,6 +107,9 @@ async function translate() {
     model,
     stream: true,
     options: { temperature: 0.2 },
+    // Used by the local RNN model to pick its direction; ignored by Ollama.
+    source_language: src,
+    target_language: tgt,
     messages: [
       {
         role: "system",

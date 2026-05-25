@@ -2,3 +2,8 @@ torch>=2.1
 fastapi>=0.110
 uvicorn>=0.27
 httpx>=0.27
+
+# Notebook training (train.ipynb)
+datasets>=2.18
+numpy>=1.24
+matplotlib>=3.7

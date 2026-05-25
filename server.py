@@ -11,6 +11,7 @@ or:
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Iterable
 
@@ -22,6 +23,19 @@ from fastapi.staticfiles import StaticFiles
 ROOT = Path(__file__).parent
 STATIC_DIR = ROOT / "static"
 CONFIG_PATH = ROOT / "config.json"
+
+# Synthetic model name for the locally-served trained RNN. The actual
+# direction (en->uz / uz->en) is chosen from the UI's language selectors.
+RNN_MODEL = "rnn"
+
+
+def _rnn_available() -> bool:
+    """True if at least one trained checkpoint exists. Imports torch lazily."""
+    try:
+        import rnn_infer
+        return bool(rnn_infer.available_directions())
+    except Exception:
+        return False
 
 
 def load_config() -> dict:
@@ -71,17 +85,23 @@ async def list_models() -> dict:
     cfg = load_config()
     allowed = cfg.get("allowed_models") or []
 
+    rnn_models = [RNN_MODEL] if _rnn_available() else []
+
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             r = await client.get(f"{_ollama_url(cfg)}/api/tags")
             r.raise_for_status()
             data = r.json()
     except httpx.HTTPError as exc:
+        # The local RNN doesn't need Ollama — still offer it if a checkpoint exists.
+        if rnn_models:
+            return {"models": rnn_models, "installed_count": 0, "allow_listed": bool(allowed)}
         raise HTTPException(status_code=502, detail=f"Ollama unreachable: {exc}") from exc
 
     installed = [m["name"] for m in data.get("models", [])]
+    models = rnn_models + _filter_models(installed, allowed)
     return {
-        "models": _filter_models(installed, allowed),
+        "models": models,
         "installed_count": len(installed),
         "allow_listed": bool(allowed),
     }
@@ -100,8 +120,17 @@ async def chat(request: Request) -> StreamingResponse:
     model = body.get("model")
     if not model:
         raise HTTPException(status_code=400, detail="`model` field is required")
+
+    # Local RNN path: don't touch Ollama or the allow-list — run the checkpoint here.
+    if model == RNN_MODEL:
+        return _rnn_chat(body)
+
     if not _is_allowed(model, allowed):
         raise HTTPException(status_code=403, detail=f"Model '{model}' is not in the allow list")
+
+    # Strip UI-only fields before proxying so we forward a clean Ollama payload.
+    body.pop("source_language", None)
+    body.pop("target_language", None)
 
     target = f"{_ollama_url(cfg)}/api/chat"
 
@@ -113,6 +142,44 @@ async def chat(request: Request) -> StreamingResponse:
                     return
                 async for chunk in r.aiter_raw():
                     yield chunk
+
+    return StreamingResponse(stream(), media_type="application/x-ndjson")
+
+
+def _last_user_text(messages: list[dict]) -> str:
+    for msg in reversed(messages or []):
+        if msg.get("role") == "user":
+            return msg.get("content", "")
+    return ""
+
+
+def _rnn_chat(body: dict) -> StreamingResponse:
+    import rnn_infer
+
+    text = _last_user_text(body.get("messages", []))
+    source = body.get("source_language")
+    target = body.get("target_language")
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="No text to translate")
+
+    try:
+        translation = rnn_infer.translate(source, target, text)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    def stream():
+        created = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        # Stream word-by-word in Ollama's NDJSON chat shape so the frontend
+        # renders it the same way as a proxied model.
+        tokens = translation.split(" ") if translation else []
+        for i, tok in enumerate(tokens):
+            content = tok if i == 0 else " " + tok
+            line = {"model": RNN_MODEL, "created_at": created,
+                    "message": {"role": "assistant", "content": content}, "done": False}
+            yield json.dumps(line) + "\n"
+        final = {"model": RNN_MODEL, "created_at": created,
+                 "message": {"role": "assistant", "content": ""}, "done": True}
+        yield json.dumps(final) + "\n"
 
     return StreamingResponse(stream(), media_type="application/x-ndjson")
 
