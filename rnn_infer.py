@@ -33,10 +33,29 @@ LANG_CODES = {"english": "en", "uzbek": "uz"}
 # ----------------------------- Text normalization -----------------------------
 # Must match `normalizeString` in train.ipynb so inference sees training-shaped text.
 
+# Modern Uzbek Cyrillic -> Latin map. OPUS-100 mixes both scripts; training
+# transliterates everything to Latin, so we must do the same at inference time.
+_UZ_CYRL_MAP = {
+    "а": "a",  "б": "b",  "в": "v",  "г": "g",  "д": "d",
+    "е": "e",  "ё": "yo", "ж": "j",  "з": "z",  "и": "i",
+    "й": "y",  "к": "k",  "л": "l",  "м": "m",  "н": "n",
+    "о": "o",  "п": "p",  "р": "r",  "с": "s",  "т": "t",
+    "у": "u",  "ф": "f",  "х": "x",  "ц": "s",  "ч": "ch",
+    "ш": "sh", "ъ": "'",  "ы": "i",  "ь": "",
+    "э": "e",  "ю": "yu", "я": "ya",
+    "ў": "o'", "қ": "q",  "ғ": "g'", "ҳ": "h",
+}
+
+
+def _uz_cyrl_to_latin(s: str) -> str:
+    return "".join(_UZ_CYRL_MAP.get(c, c) for c in s)
+
+
 def normalize_string(s: str) -> str:
     s = unicodedata.normalize("NFC", s.lower().strip())
     for a in ("ʻ", "ʼ", "‘", "’", "`"):
         s = s.replace(a, "'")
+    s = _uz_cyrl_to_latin(s)
     s = re.sub(r"([.!?,;:])", r" \1 ", s)
     s = re.sub(r"[^\w'.!?,;:]+", " ", s, flags=re.UNICODE)
     s = re.sub(r"\s+", " ", s)

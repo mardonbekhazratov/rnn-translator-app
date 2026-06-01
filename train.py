@@ -97,10 +97,29 @@ def train_sentencepiece(texts, vocab_size, model_type="bpe",
 
 # ---- Text normalization (must match rnn_infer.normalize_string) -------------
 
+# Modern Uzbek Cyrillic -> Latin char map. Simple char-by-char substitution;
+# OPUS-100 mixes both scripts so this collapses them to a single vocabulary.
+_UZ_CYRL_MAP = {
+    "а": "a",  "б": "b",  "в": "v",  "г": "g",  "д": "d",
+    "е": "e",  "ё": "yo", "ж": "j",  "з": "z",  "и": "i",
+    "й": "y",  "к": "k",  "л": "l",  "м": "m",  "н": "n",
+    "о": "o",  "п": "p",  "р": "r",  "с": "s",  "т": "t",
+    "у": "u",  "ф": "f",  "х": "x",  "ц": "s",  "ч": "ch",
+    "ш": "sh", "ъ": "'",  "ы": "i",  "ь": "",
+    "э": "e",  "ю": "yu", "я": "ya",
+    "ў": "o'", "қ": "q",  "ғ": "g'", "ҳ": "h",
+}
+
+
+def _uz_cyrl_to_latin(s):
+    return "".join(_UZ_CYRL_MAP.get(c, c) for c in s)
+
+
 def normalizeString(s):
     s = unicodedata.normalize("NFC", s.lower().strip())
     for a in ("ʻ", "ʼ", "‘", "’", "`"):
         s = s.replace(a, "'")
+    s = _uz_cyrl_to_latin(s)
     s = re.sub(r"([.!?,;:])", r" \1 ", s)
     s = re.sub(r"[^\w'.!?,;:]+", " ", s, flags=re.UNICODE)
     s = re.sub(r"\s+", " ", s)
