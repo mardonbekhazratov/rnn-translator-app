@@ -14,6 +14,7 @@ import unicodedata
 from functools import lru_cache
 from pathlib import Path
 
+import sentencepiece as spm
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -40,13 +41,6 @@ def normalize_string(s: str) -> str:
     s = re.sub(r"[^\w'.!?,;:]+", " ", s, flags=re.UNICODE)
     s = re.sub(r"\s+", " ", s)
     return s.strip()
-
-
-def detokenize(words: list[str]) -> str:
-    """Re-join tokens into readable text (no space before punctuation)."""
-    text = " ".join(words)
-    text = re.sub(r"\s+([.!?,;:])", r"\1", text)
-    return text.strip()
 
 
 # ----------------------------- Model (mirrors the notebook) -----------------------------
@@ -102,6 +96,9 @@ class AttnDecoderRNN(nn.Module):
             decoder_outputs.append(decoder_output)
             _, topi = decoder_output.topk(1)
             decoder_input = topi.squeeze(-1).detach()
+            # Stop early if every sequence in the batch has emitted EOS.
+            if (decoder_input == EOS_token).all():
+                break
 
         decoder_outputs = torch.cat(decoder_outputs, dim=1)
         decoder_outputs = F.log_softmax(decoder_outputs, dim=-1)
@@ -121,16 +118,20 @@ class AttnDecoderRNN(nn.Module):
 
 class Translator:
     def __init__(self, ckpt_path: Path):
-        # Our own trusted checkpoint; full unpickling is required for the vocab dicts.
+        # Our own trusted checkpoint; full unpickling is required for the SP model bytes.
         ckpt = torch.load(ckpt_path, map_location=DEVICE, weights_only=False)
         self.direction = ckpt["direction"]
         self.max_length = ckpt["max_length"]
         hidden_size = ckpt["hidden_size"]
-        self.in_lang = ckpt["input_lang"]
-        self.out_lang = ckpt["output_lang"]
 
-        self.encoder = EncoderRNN(self.in_lang["n_words"], hidden_size).to(DEVICE)
-        self.decoder = AttnDecoderRNN(hidden_size, self.out_lang["n_words"]).to(DEVICE)
+        # SentencePiece tokenizers restored from the bytes saved in the checkpoint.
+        self.sp_in = spm.SentencePieceProcessor()
+        self.sp_in.LoadFromSerializedProto(ckpt["input_sp_model"])
+        self.sp_out = spm.SentencePieceProcessor()
+        self.sp_out.LoadFromSerializedProto(ckpt["output_sp_model"])
+
+        self.encoder = EncoderRNN(self.sp_in.GetPieceSize(), hidden_size).to(DEVICE)
+        self.decoder = AttnDecoderRNN(hidden_size, self.sp_out.GetPieceSize()).to(DEVICE)
         self.encoder.load_state_dict(ckpt["encoder_state"])
         self.decoder.load_state_dict(ckpt["decoder_state"])
         self.encoder.eval()
@@ -141,25 +142,18 @@ class Translator:
         text = normalize_string(text)
         if not text:
             return ""
-        w2i = self.in_lang["word2index"]
-        ids = [w2i.get(w, UNK_token) for w in text.split(" ")]
-        ids.append(EOS_token)
+        ids = self.sp_in.EncodeAsIds(text) + [EOS_token]
         input_tensor = torch.tensor(ids, dtype=torch.long, device=DEVICE).view(1, -1)
 
         encoder_outputs, encoder_hidden = self.encoder(input_tensor)
         decoder_outputs = self.decoder(encoder_outputs, encoder_hidden, self.max_length)
 
         _, topi = decoder_outputs.topk(1)
-        i2w = self.out_lang["index2word"]
-        words = []
-        for idx in topi.squeeze(0).squeeze(-1):
-            tok = idx.item()
-            if tok == EOS_token:
-                break
-            if tok in (PAD_token, UNK_token, SOS_token):
-                continue
-            words.append(i2w.get(tok, ""))
-        return detokenize([w for w in words if w])
+        out_ids = topi.squeeze(0).squeeze(-1).tolist()
+        if EOS_token in out_ids:
+            out_ids = out_ids[:out_ids.index(EOS_token)]
+        out_ids = [i for i in out_ids if i not in (PAD_token, SOS_token, UNK_token)]
+        return self.sp_out.DecodeIds(out_ids)
 
 
 def _ckpt_path(direction: str) -> Path:

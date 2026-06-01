@@ -1,6 +1,7 @@
 torch>=2.1
 fastapi>=0.110
 uvicorn>=0.27
+sentencepiece>=0.2
 
 # Notebook training (train.ipynb)
 datasets>=2.18
